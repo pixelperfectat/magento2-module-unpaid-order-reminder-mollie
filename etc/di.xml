@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:framework:ObjectManager/etc/config.xsd">
+    <!-- Adds one entry to the core's registry of describable methods. The core has no knowledge of
+         Mollie; removing this package removes the method from the admin dropdown, and any rule left
+         behind for it is ignored rather than fatal. -->
+    <type name="PixelPerfect\UnpaidOrderReminder\Service\Instructions\ProviderPool">
+        <arguments>
+            <argument name="providers" xsi:type="array">
+                <item name="mollie_methods_banktransfer" xsi:type="object">PixelPerfect\UnpaidOrderReminderMollie\Service\Instructions\MollieBankTransfer</item>
+            </argument>
+        </arguments>
+    </type>
+</config>
