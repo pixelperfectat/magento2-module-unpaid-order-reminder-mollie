@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-09-01
+
+### Fixed
+
+- No reminder was ever sent for an order whose Mollie payment id was held only in the
+  `sales_order.mollie_transaction_id` column. Mollie writes that column when it creates the payment, at
+  order placement, but writes `additional_information['mollie_id']` only when the payment is processed —
+  on the webhook, or on the shopper's return from the hosted page. An order that nobody paid and nobody
+  returned from therefore carried the column but not the key, and that is exactly the order this reminder
+  exists for. The provider read the key alone and reported "no instructions". The column is now read
+  first, and the key remains a fallback.
+
 ## [0.1.0] - 2026-09-01
 
 ### Added
