@@ -5,6 +5,7 @@ namespace PixelPerfect\UnpaidOrderReminderMollie\Test\Unit\Service\Instructions;
 
 use Magento\Sales\Api\Data\OrderInterface;
 use Magento\Sales\Api\Data\OrderPaymentInterface;
+use Magento\Sales\Model\Order;
 use Mollie\Api\Endpoints\PaymentEndpoint;
 use Mollie\Api\MollieApiClient as ApiClient;
 use Mollie\Api\Resources\Payment;
@@ -238,6 +239,84 @@ class MollieBankTransferTest extends TestCase
      *     information, so a single test can vary one key without repeating the rest.
      * @return OrderInterface
      */
+    /**
+     * The regression this provider was rewritten for. Mollie writes mollie_transaction_id at order
+     * placement but additional_information['mollie_id'] only when the payment is processed, so an
+     * order nobody paid and nobody returned from has the column alone. Reading only the key made
+     * the provider silently skip precisely the orders it exists to chase.
+     */
+    public function testResolvesThePaymentFromTheOrderColumnWhenTheKeyIsAbsent(): void
+    {
+        $this->payments->expects($this->once())
+            ->method('get')
+            ->with('tr_fromcolumnexample')
+            ->willReturn($this->payment((object)[
+                'bankName' => 'Example Bank',
+                'bankAccount' => 'NL00INGB0000000000',
+                'transferReference' => 'ABC-1234-DEF',
+            ]));
+
+        $order = $this->orderWithColumn('tr_fromcolumnexample', ['mollie_id' => null]);
+
+        $this->assertNotNull($this->provider()->forOrder($order));
+    }
+
+    /**
+     * Both present: the column is the value Mollie keeps current, so it wins.
+     */
+    public function testPrefersTheOrderColumnOverTheStoredKey(): void
+    {
+        $this->payments->expects($this->once())
+            ->method('get')
+            ->with('tr_fromcolumnexample')
+            ->willReturn($this->payment((object)[
+                'bankName' => 'Example Bank',
+                'bankAccount' => 'NL00INGB0000000000',
+                'transferReference' => 'ABC-1234-DEF',
+            ]));
+
+        $order = $this->orderWithColumn('tr_fromcolumnexample');
+
+        $this->assertNotNull($this->provider()->forOrder($order));
+    }
+
+    /**
+     * Neither source carries an id, so there is no payment to read.
+     */
+    public function testReturnsNullWhenNeitherSourceCarriesAnId(): void
+    {
+        $this->payments->expects($this->never())->method('get');
+
+        $order = $this->orderWithColumn('   ', ['mollie_id' => '']);
+
+        $this->assertNull($this->provider()->forOrder($order));
+    }
+
+    /**
+     * Build an order that is a DataObject, so the mollie_transaction_id column can be read off it.
+     *
+     * @param string $transactionId
+     * @param array<string, mixed> $additionalOverrides
+     * @return OrderInterface
+     */
+    private function orderWithColumn(string $transactionId, array $additionalOverrides = []): OrderInterface
+    {
+        $payment = $this->createMock(OrderPaymentInterface::class);
+        $payment->method('getAdditionalInformation')->willReturn(array_merge([
+            'mollie_id' => 'tr_exampleexampleexample',
+            'expires_at' => '2026-09-09T04:00:00+00:00',
+            'checkout_url' => 'https://example.com/checkout/bank-transfer/reference/x',
+        ], $additionalOverrides));
+
+        $order = $this->createMock(Order::class);
+        $order->method('getPayment')->willReturn($payment);
+        $order->method('getStoreId')->willReturn(1);
+        $order->method('getEntityId')->willReturn(900);
+        $order->method('getData')->with('mollie_transaction_id')->willReturn($transactionId);
+
+        return $order;
+    }
+
     private function order(array $additionalOverrides = []): OrderInterface
     {
         $payment = $this->createMock(OrderPaymentInterface::class);

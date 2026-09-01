@@ -5,6 +5,7 @@ namespace PixelPerfect\UnpaidOrderReminderMollie\Service\Instructions;
 
 use DateTimeImmutable;
 use DateTimeZone;
+use Magento\Framework\DataObject;
 use Magento\Sales\Api\Data\OrderInterface;
 use Mollie\Payment\Service\Mollie\MollieApiClient;
 use PixelPerfect\UnpaidOrderReminder\Api\Data\PaymentInstructionsInterface;
@@ -26,6 +27,8 @@ use Throwable;
 class MollieBankTransfer implements PaymentInstructionsProviderInterface
 {
     private const MYSQL_DATETIME = 'Y-m-d H:i:s';
+
+    private const TRANSACTION_ID_FIELD = 'mollie_transaction_id';
 
     /**
      * @param MollieApiClient $clientLoader
@@ -55,7 +58,7 @@ class MollieBankTransfer implements PaymentInstructionsProviderInterface
         $additional = $payment->getAdditionalInformation();
         $additional = is_array($additional) ? $additional : [];
 
-        $transactionId = (string)($additional['mollie_id'] ?? '');
+        $transactionId = $this->transactionId($order, $additional);
         if ($transactionId === '') {
             return null;
         }
@@ -99,6 +102,31 @@ class MollieBankTransfer implements PaymentInstructionsProviderInterface
             'expiresAt' => $this->expiresAt($additional),
             'paymentUrl' => $this->stringOrNull((object)$additional, 'checkout_url'),
         ]);
+    }
+
+    /**
+     * Find the id of the Mollie payment for this order.
+     *
+     * Mollie writes sales_order.mollie_transaction_id when the payment is created, at order
+     * placement. It writes additional_information['mollie_id'] only in processTransaction(), which
+     * runs on the webhook or the shopper's return. An order that nobody paid and nobody returned
+     * from therefore has the column but not the key - and that is exactly the order this reminder
+     * exists for. The column is read first for that reason; the key remains a fallback.
+     *
+     * @param OrderInterface $order
+     * @param array<string, mixed> $additional
+     * @return string
+     */
+    private function transactionId(OrderInterface $order, array $additional): string
+    {
+        if ($order instanceof DataObject) {
+            $fromColumn = $order->getData(self::TRANSACTION_ID_FIELD);
+            if (is_string($fromColumn) && trim($fromColumn) !== '') {
+                return trim($fromColumn);
+            }
+        }
+
+        return trim((string)($additional['mollie_id'] ?? ''));
     }
 
     /**
