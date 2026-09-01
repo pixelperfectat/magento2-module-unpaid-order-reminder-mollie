@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset name="PixelPerfect UnpaidOrderReminderMollie">
+    <description>Uses the shared PixelPerfect standard (pixelperfectat/coding-standard).</description>
+    <config name="ignore_warnings_on_exit" value="1"/>
+
+    <file>.</file>
+    <exclude-pattern>*/Test/*</exclude-pattern>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+
+    <rule ref="PixelPerfect"/>
+</ruleset>

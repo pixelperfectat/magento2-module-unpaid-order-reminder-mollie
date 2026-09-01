@@ -1,0 +1,7 @@
+includes:
+    - vendor/pixelperfectat/coding-standard/phpstan.neon
+
+parameters:
+    treatPhpDocTypesAsCertain: false
+    paths:
+        - Service
