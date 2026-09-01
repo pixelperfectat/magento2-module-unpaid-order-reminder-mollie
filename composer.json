@@ -3,7 +3,14 @@
   "description": "Mollie bank transfer support for the Magento 2 unpaid order reminder",
   "type": "magento2-module",
   "license": "MIT",
-  "keywords": ["magento", "magento2", "mollie", "bank-transfer", "payment", "reminder"],
+  "keywords": [
+    "magento",
+    "magento2",
+    "mollie",
+    "bank-transfer",
+    "payment",
+    "reminder"
+  ],
   "minimum-stability": "dev",
   "prefer-stable": true,
   "config": {
@@ -16,26 +23,34 @@
     }
   },
   "repositories": [
-    { "type": "composer", "url": "https://repo.magento.com/" },
-    { "type": "path", "url": "../magento2-module-unpaid-order-reminder" }
+    {
+      "type": "composer",
+      "url": "https://repo.magento.com/"
+    }
   ],
   "require": {
     "php": "^8.3",
     "magento/framework": "103.0.*",
     "magento/module-sales": "103.0.*",
     "mollie/magento2": "^2.49",
-    "pixelperfectat/magento2-module-unpaid-order-reminder": "^0.1.0"
+    "pixelperfectat/magento2-module-unpaid-order-reminder": "^0.2.0"
   },
   "require-dev": {
     "phpunit/phpunit": "^9.6",
     "pixelperfectat/coding-standard": "^0.1.0"
   },
   "autoload": {
-    "files": ["registration.php"],
-    "psr-4": { "PixelPerfect\\UnpaidOrderReminderMollie\\": "" }
+    "files": [
+      "registration.php"
+    ],
+    "psr-4": {
+      "PixelPerfect\\UnpaidOrderReminderMollie\\": ""
+    }
   },
   "extra": {
-    "branch-alias": { "dev-main": "0.1.x-dev" }
+    "branch-alias": {
+      "dev-main": "0.1.x-dev"
+    }
   },
   "scripts": {
     "lint": "parallel-lint --exclude vendor --exclude generated .",
@@ -45,6 +60,12 @@
     "test": "phpunit",
     "ci:validate": "@composer validate --no-check-publish",
     "ci:normalize": "@composer normalize --dry-run --diff",
-    "check": ["@ci:validate", "@lint", "@cs", "@stan", "@test"]
+    "check": [
+      "@ci:validate",
+      "@lint",
+      "@cs",
+      "@stan",
+      "@test"
+    ]
   }
 }
