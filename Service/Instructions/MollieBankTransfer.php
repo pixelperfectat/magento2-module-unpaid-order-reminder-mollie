@@ -80,14 +80,19 @@ class MollieBankTransfer implements PaymentInstructionsProviderInterface
             return null;
         }
 
+        $bankName = $this->stringOrNull($details, 'bankName');
         $account = $this->stringOrNull($details, 'bankAccount');
         $reference = $this->stringOrNull($details, 'transferReference');
-        if ($account === null || $reference === null) {
+        // Matches the core's hasStructuredBankDetails() threshold exactly. ReminderSender gates the
+        // whole bank-details block on that flag and this provider never sets instructionsHtml, so a
+        // response missing any one of these would render an email with nothing for the shopper to
+        // act on while still spending the order's one reminder.
+        if ($bankName === null || $account === null || $reference === null) {
             return null;
         }
 
         return $this->instructionsFactory->create([
-            'bankName' => $this->stringOrNull($details, 'bankName'),
+            'bankName' => $bankName,
             'bankAccount' => $account,
             'bankBic' => $this->stringOrNull($details, 'bankBic'),
             'reference' => $reference,

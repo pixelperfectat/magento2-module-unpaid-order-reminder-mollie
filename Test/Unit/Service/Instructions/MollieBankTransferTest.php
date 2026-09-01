@@ -95,6 +95,48 @@ class MollieBankTransferTest extends TestCase
         $this->assertNull($this->provider()->forOrder($this->order()));
     }
 
+    /**
+     * A blank field is not the same as a missing one to a naive check, but stringOrNull() must still
+     * turn it into null - a whitespace-only reference is exactly as unmatchable as an absent one.
+     */
+    public function testReturnsNullWhenTheReferenceIsBlank(): void
+    {
+        $this->payments->method('get')->willReturn($this->payment((object)[
+            'bankName' => 'Example Bank',
+            'bankAccount' => 'NL00INGB0000000000',
+            'transferReference' => '   ',
+        ]));
+
+        $this->assertNull($this->provider()->forOrder($this->order()));
+    }
+
+    public function testReturnsNullWhenTheAccountIsBlank(): void
+    {
+        $this->payments->method('get')->willReturn($this->payment((object)[
+            'bankName' => 'Example Bank',
+            'bankAccount' => '',
+            'transferReference' => 'ABC-1234-DEF',
+        ]));
+
+        $this->assertNull($this->provider()->forOrder($this->order()));
+    }
+
+    /**
+     * hasStructuredBankDetails() on the core value object - and therefore ReminderSender's decision
+     * to render the bank-details block at all - requires bankName too. A response missing it must be
+     * rejected here, or a "successful" lookup would produce an email with nothing for the shopper to
+     * act on while still spending the order's one reminder.
+     */
+    public function testReturnsNullWhenTheBankNameIsMissing(): void
+    {
+        $this->payments->method('get')->willReturn($this->payment((object)[
+            'bankAccount' => 'NL00INGB0000000000',
+            'transferReference' => 'ABC-1234-DEF',
+        ]));
+
+        $this->assertNull($this->provider()->forOrder($this->order()));
+    }
+
     public function testReturnsNullWhenThePaymentCarriesNoDetailsAtAll(): void
     {
         $this->payments->method('get')->willReturn($this->payment(null));
@@ -137,6 +179,49 @@ class MollieBankTransferTest extends TestCase
     }
 
     /**
+     * The try/catch in forOrder() wraps both loadByStore() and payments->get() today. This test
+     * exists so a later refactor that hoists the loadByStore() call above the try - which reads like
+     * a harmless tidy-up - cannot reintroduce an uncaught throw on a bad API key without failing a
+     * test. It builds its own clientLoader rather than reusing setUp()'s, since an unconstrained
+     * stub added in a test does not override the one already registered in setUp().
+     */
+    public function testReturnsNullAndLogsWhenLoadByStoreThrows(): void
+    {
+        $clientLoader = $this->createMock(MollieApiClient::class);
+        $clientLoader->method('loadByStore')->willThrowException(new \Exception('invalid api key'));
+
+        $logger = $this->createMock(LoggerInterface::class);
+        $logger->expects($this->once())->method('warning');
+
+        $provider = new MollieBankTransfer(
+            $clientLoader,
+            $this->createMock(PaymentInstructionsFactory::class),
+            $logger
+        );
+
+        $this->assertNull($provider->forOrder($this->order()));
+    }
+
+    /**
+     * expiresAt() catches Throwable around the DateTimeImmutable parse and returns null, which is
+     * treated as "never expires" rather than failing the whole lookup - the bank details are still
+     * usable even if the deadline could not be read.
+     */
+    public function testTreatsAnUnparseableExpiresAtAsNoExpiry(): void
+    {
+        $this->payments->method('get')->willReturn($this->payment((object)[
+            'bankName' => 'Example Bank',
+            'bankAccount' => 'NL00INGB0000000000',
+            'transferReference' => 'ABC-1234-DEF',
+        ]));
+
+        $instructions = $this->provider()->forOrder($this->order(['expires_at' => 'not-a-date']));
+
+        $this->assertNotNull($instructions);
+        $this->assertNull($instructions->getExpiresAt());
+    }
+
+    /**
      * @param object|null $details
      * @return Payment
      */
@@ -148,14 +233,19 @@ class MollieBankTransferTest extends TestCase
         return $payment;
     }
 
-    private function order(): OrderInterface
+    /**
+     * @param array<string, mixed> $additionalOverrides merged over the default additional
+     *     information, so a single test can vary one key without repeating the rest.
+     * @return OrderInterface
+     */
+    private function order(array $additionalOverrides = []): OrderInterface
     {
         $payment = $this->createMock(OrderPaymentInterface::class);
-        $payment->method('getAdditionalInformation')->willReturn([
+        $payment->method('getAdditionalInformation')->willReturn(array_merge([
             'mollie_id' => 'tr_exampleexampleexample',
             'expires_at' => '2026-09-09T04:00:00+00:00',
             'checkout_url' => 'https://example.com/checkout/bank-transfer/reference/x',
-        ]);
+        ], $additionalOverrides));
 
         $order = $this->createMock(OrderInterface::class);
         $order->method('getPayment')->willReturn($payment);
